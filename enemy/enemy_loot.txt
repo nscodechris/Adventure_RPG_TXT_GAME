@@ -1,3 +1,0 @@
-potion
-antidote
-silver_dust
