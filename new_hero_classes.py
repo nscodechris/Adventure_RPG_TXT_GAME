@@ -12,6 +12,8 @@ import pygame
 from art import *
 import shutil
 import secrets
+import openpyxl
+import openpyxl as xl
 
 
 
@@ -395,12 +397,22 @@ class YourHero:
 
     # Item money back when selling, from excel file, by qty of user_input
     def x_item_selling(self, name, shop_name, count):
+        YourHero.buying_habits(self, shop_name, count, name)
 
-        item_list = pd.read_excel(dir_path.inventory_items_path + inventory_item_file, sheet_name=shop_name)
-        dt = pd.DataFrame(item_list)
-        dt.set_index("Items", inplace=True)
-        dt.loc[name]["Quantity"] = dt.loc[name]["Quantity"] - int(count)
-        dt.to_excel(dir_path.inventory_items_path + inventory_item_file, sheet_name=shop_name)
+
+        # in excel file, make temp buying count, erase and save, not use dt.to_excel!!
+        item_list_for_index = pd.read_excel(dir_path.inventory_items_path + inventory_item_file, sheet_name=shop_name)
+        wb = openpyxl.load_workbook(dir_path.inventory_items_path + inventory_item_file)
+        ws = wb[shop_name]
+        row_numbers = item_list_for_index[item_list_for_index['Items'] == name].index[0]
+        row_numbers = row_numbers + 2
+        qty_column = ws.cell(row=row_numbers, column=3)
+        temp_qty = ws.cell(row=row_numbers, column=4)
+        temp_qty.value = int(count)
+        qty_new_value = qty_column.value - temp_qty.value
+        qty_column.value = qty_new_value
+        temp_qty.value = None
+        wb.save(dir_path.inventory_items_path + inventory_item_file)
 
     def x_item_quantity(self, name, shop_name):
         item_list = pd.read_excel(dir_path.inventory_items_path + inventory_item_file, sheet_name=shop_name)
@@ -2200,6 +2212,122 @@ class YourHero:
         else:
             print("You found the", find_weapon_armory_ring, "but your level is to weak, you can not carry it")
 
+    def shop_count(self, shop_name, shop_default, enter_count):
+        if enter_count == "yes":
+            minutes_to_new_items = random.randint(15, 25)
+            path = dir_path.inventory_items_path + inventory_item_file
+            wb = openpyxl.load_workbook(path)
+            ws = wb["store_count"]
+            df_town_count = pd.read_excel(path, "store_count")
+            shop_index = df_town_count[df_town_count["town"] == shop_name].index.values
+            end_time = df_town_count.loc[shop_index, "end"].values
+            start_time = df_town_count.loc[shop_index, "start"].values
+            count_times = df_town_count.loc[shop_index, "count"].values
+            # print(df_town_count.dtypes)
+            end = pd.to_datetime(end_time[0])
+            start = pd.to_datetime(start_time[0])
+            diff = (end - start)
+            minute_diff = diff.seconds / 60
+            # print(start)
+            row_numbers = df_town_count[df_town_count['town'] == shop_name].index[0]
+            row_numbers = row_numbers + 2
+            if start_time[0] == 0 and end_time[0] == 0:
+                # df_town_count["start"].replace([0], my_timer.get_time_hhmmss)
+                b_colm = ws.cell(row=row_numbers, column=2)
+                b_colm.value = my_timer.get_time_hhmmss()
+                wb.save(path)
+            elif start_time[0] != 0 and end_time[0] == 0:
+                # df_town_count["end"].replace([0], my_timer.get_time_hhmmss())
+                c_colm = ws.cell(row=row_numbers, column=3)
+                c_colm.value = my_timer.get_time_hhmmss()
+                d_colm = ws.cell(row=row_numbers, column=4)
+                d_colm.value = 1
+                wb.save(path)
+                # df_town_count.to_excel(path)
+            elif start_time[0] != 0 and end_time[0] != 0 and count_times[0] > 1:
+                if minute_diff >= 1:
+                    ws.cell(row=row_numbers, column=4).value = None
+                    ws.cell(row=row_numbers, column=3).value = "0"
+                    ws.cell(row=row_numbers, column=2).value = "0"
+                    wb.save(path)
+                    workbook = xl.load_workbook(path)
+                    sheet1 = workbook[shop_default]
+                    sheet2 = workbook[shop_name]
+                    # mac rows and columns
+                    maxr = sheet1.max_row
+                    maxc = sheet1.max_column
+                    for r in range(1, maxr + 1):
+                        for c in range(1, maxc + 1):
+                            sheet2.cell(row=r, column=c).value = sheet1.cell(row=r, column=c).value
+                    workbook.save(path)
+                elif minute_diff < 1:
+                    c_colm = ws.cell(row=row_numbers, column=3)
+                    c_colm.value = my_timer.get_time_hhmmss()
+                    d_colm = ws.cell(row=row_numbers, column=4)
+                    d_colm.value += 1
+                    wb.save(path)
+            elif start_time[0] != 0 and end_time[0] != 0 and count_times[0] == 1:
+                c_colm = ws.cell(row=row_numbers, column=3)
+                c_colm.value = my_timer.get_time_hhmmss()
+                d_colm = ws.cell(row=row_numbers, column=4)
+                d_colm.value += 1
+                wb.save(path)
+
+    def buying_habits(self, shop_name, buy_count, buy_items):
+        path = dir_path.inventory_items_path + inventory_item_file
+        dataset = pd.read_excel(path, "buy_history")
+        dataset['count'] = dataset['count'].fillna(0)
+        dataset['cost'] = dataset['cost'].fillna(0)
+        # print(dataset)
+        dataset = dataset.sort_values(['count'], ascending=[False])
+        dataset = dataset.reset_index(drop=True)
+        dataset.loc[dataset['count'] > 0, 'sold'] = 'True'
+        dataset.loc[dataset['count'] == 0, 'sold'] = 'False'
+
+        most_sold_item = dataset.loc[0, "Items"]
+        most_sold_item_qty = dataset.loc[0, "count"]
+        second_most_sold_item = dataset.loc[1, "Items"]
+        second_sold_item_qty = dataset.loc[1, "count"]
+
+        item_index_1 = dataset[dataset["Items"] == most_sold_item].index.values
+        item_index_2 = dataset[dataset["Items"] == second_most_sold_item].index.values
+        # dataset = pd.read_excel(path, "buy_history")
+
+        wb = openpyxl.load_workbook(path)
+        ws = wb["buy_history"]
+        df_buy_count = pd.read_excel(path, shop_name)
+        if buy_items == most_sold_item or buy_items == second_most_sold_item:
+            # print("You buy this a lot, i give you a discount")
+            item_index = df_buy_count[df_buy_count["Items"] == buy_items].index.values
+            row_numbers = df_buy_count[df_buy_count['Items'] == buy_items].index[0]
+            row_numbers = row_numbers + 2
+            count_colm_temp = ws.cell(row=row_numbers, column=4)
+            count_colm = ws.cell(row=row_numbers, column=2)
+            price_colm = ws.cell(row=row_numbers, column=5)
+            cost_colm = ws.cell(row=row_numbers, column=3)
+            count_colm_temp.value = int(buy_count)
+            count_value = count_colm.value + count_colm_temp.value
+            count_colm.value = count_value
+            total_cost = count_colm.value * price_colm.value
+            cost_colm.value = total_cost
+            count_colm_temp.value = None
+            wb.save(path)
+        else:
+            item_index = df_buy_count[df_buy_count["Items"] == buy_items].index.values
+            row_numbers = df_buy_count[df_buy_count['Items'] == buy_items].index[0]
+            row_numbers = row_numbers + 2
+            count_colm_temp = ws.cell(row=row_numbers, column=4)
+            count_colm = ws.cell(row=row_numbers, column=2)
+            price_colm = ws.cell(row=row_numbers, column=5)
+            cost_colm = ws.cell(row=row_numbers, column=3)
+            count_colm_temp.value = int(buy_count)
+            count_value = count_colm.value + count_colm_temp.value
+            count_colm.value = count_value
+            total_cost = count_colm.value * price_colm.value
+            cost_colm.value = total_cost
+            count_colm_temp.value = None
+            wb.save(path)
+
     def x_materia_shop(self, shop_name, clerk_name):
         YourHero.x_initials_stats(self)
         print("---------------------------------------------------------")
@@ -2326,8 +2454,8 @@ class YourHero:
                     choice = ""
                     print("---------------------------------------------------------")
 
-    def x_shop(self, shop_name, clerk_name):
-        YourHero.x_time_enter_shop(self, shop_name)
+    def x_shop(self, shop_name, clerk_name, shop_default, enter_count):
+        YourHero.shop_count(self, shop_name, shop_default, enter_count)
         var = len(self.inventory["Item"])
         print("---------------------------------------------------------")
         tprint(shop_name)
@@ -5663,10 +5791,10 @@ def story1_abrehiem_town():
                     print("---------------------------------------------------------")
                     input("press enter to continue")
                     play.music_loop(play.sound_chapter_1[3])
-                    YourHero.x_shop(elena, "Abreheim's items", "Lisa")
-                    YourHero.x_shop(cloud, "Abreheim's items", "Lisa")
+                    YourHero.x_shop(elena, "Abreheim's items", "Lisa", "Abreheim's items_default", "yes")
+                    YourHero.x_shop(cloud, "Abreheim's items", "Lisa", "Abreheim's items_default", "no")
                     play.music_loop(play.sound_chapter_1[2])
-                    print("Something more")
+                    # print("Something more")
                     input("Press enter to continue")
                 elif "materia shop" in walk_choice:
                     YourHero.x_materia_shop(elena, "Abreheim's materia", "Mystica")
