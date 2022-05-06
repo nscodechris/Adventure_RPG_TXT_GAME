@@ -1,2 +1,8 @@
 # Adventure_RPG_TXT_GAME
 Download all folders and files and put them in same folder on your computer, open cmd and run .py file from there.
+You may need to pip install any modules you dont have installed.
+
+TO DO
+Trying to figure out if a .exe file will solve that problem.
+Else:
+Another goal is to code so all the modules will be installed on users computer when starting game for the first time.
