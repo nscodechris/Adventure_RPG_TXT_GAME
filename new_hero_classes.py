@@ -6765,6 +6765,10 @@ def initiate_game():
 installing_game()
 
 '''
+Change the time for when the stores will have new items, now its set to 1 minute, maybe 30min? or so?
+Buying habits, when bought over atleast 10 then you can have discount, easy to code, check with excel file,
+compare >= 10 then....discount, maybe a count, for 1 next discount at 30 sold?? and so on...
+
 using "in" to search for the input of the users text to navigate in the game, change this in the whole game!!
  if "mountains" in walk or "north" in walk:
     luck = 1
